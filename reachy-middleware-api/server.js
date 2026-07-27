@@ -40,6 +40,39 @@ app.get('/api/plannings/professeur/:nom_prof', (req, res) => {
     }
 });
 
+// Route pour chercher dans la base de connaissances institutionnelle
+app.get('/api/connaissances/search', (req, res) => {
+    const query = (req.query.q || '').toLowerCase();
+    
+    if (!query) {
+        return res.status(400).json({ erreur: "Veuillez fournir un paramètre de recherche 'q'." });
+    }
+
+    try {
+        const connaissances = require('./data/connaissances.json');
+        
+        // Recherche simple par mots-clés ou dans la question
+        const resultats = connaissances.filter(item => 
+            item.question.toLowerCase().includes(query) || 
+            item.mots_cles.some(mot => query.includes(mot.toLowerCase()))
+        );
+
+        if (resultats.length > 0) {
+            res.json({
+                trouve: true,
+                resultats: resultats
+            });
+        } else {
+            res.json({
+                trouve: false,
+                message: "Désolé, je n'ai pas trouvé d'information correspondante dans la base de connaissances."
+            });
+        }
+    } catch (error) {
+        res.status(500).json({ erreur: "Erreur lors de la lecture de la base de connaissances." });
+    }
+});
+
 // -------------------------------------------------------------
 // ROUTES PRIVÉES (Nécessitent le scan de la carte étudiante)
 // -------------------------------------------------------------

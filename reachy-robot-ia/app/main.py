@@ -33,7 +33,14 @@ async def process_stt(file: UploadFile = File(...)):
 @app.post("/api/v1/process")
 async def process_pipeline(req: AnalysisRequest):
     nlp_result = services["nlp"].classify(req.text)
-    mcp_result = await services["mcp"].execute_tool(nlp_result["intent"], req.params)
+    
+    # Fusion des paramètres de la requête et de ceux extraits par le NLP
+    params = req.params.copy()
+    if "params" in nlp_result:
+        params.update(nlp_result["params"])
+    params["original_text"] = req.text
+        
+    mcp_result = await services["mcp"].execute_tool(nlp_result["intent"], params)
     
     return {
         "analysis": nlp_result,
