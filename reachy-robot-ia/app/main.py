@@ -40,7 +40,14 @@ async def process_pipeline(req: AnalysisRequest):
         params.update(nlp_result["params"])
     params["original_text"] = req.text
         
-    mcp_result = await services["mcp"].execute_tool(nlp_result["intent"], params)
+    if nlp_result["intent"] == "CHAT":
+        # Si c'est une simple discussion, on ne passe pas par MCP
+        mcp_result = {
+            "response": nlp_result.get("chat_response", "Bonjour ! Je suis Reachy, comment puis-je t'aider ?")
+        }
+    else:
+        # On exécute l'outil via MCP
+        mcp_result = await services["mcp"].execute_tool(nlp_result["intent"], params)
     
     return {
         "analysis": nlp_result,
