@@ -6,9 +6,11 @@ from scipy.io.wavfile import write
 import httpx
 from gtts import gTTS
 import pygame
+from reachy_mini import ReachyMini
+import numpy as np
 
-# --- CONFIGURATION ---
-API_BASE_URL = "http://127.0.0.1:8000"
+# --- CONFIGURATION MATÉRIEL REACHY ---
+API_BASE_URL = "http://127.0.0.1:8080"
 AUDIO_RECORD_FILE = "temp_user_input.wav"
 AUDIO_WAKE_FILE = "temp_wake_input.wav"
 AUDIO_RESPONSE_FILE = "temp_robot_response.mp3"
@@ -16,7 +18,12 @@ AUDIO_RESPONSE_FILE = "temp_robot_response.mp3"
 SAMPLERATE = 16000
 RECORD_DURATION = 5        # Durée d'écoute de la question (secondes)
 WAKE_RECORD_DURATION = 3   # Durée d'écoute par tranche pour le Mot-Clé (secondes)
-CAMERA_INDEX = 0           # Index DroidCam / Caméra
+
+# 🛠️ PERIPHERIQUES ROBOT
+ROBOT_HOST = "reachy.local" 
+ROBOT_MIC_ID = 5           # ID du microphone Reachy Mini Audio
+CAMERA_INDEX = 0          # Index de la caméra Reachy
+ROBOT_SPEAKER_NAME = "Interphone avec annulation d'écho (Reachy Mini Audio)" # Nom du haut-parleur Reachy
 
 # Phonétiques tolérées par Whisper pour le mot-clé "Reachy"
 WAKE_WORDS = ["reachy", "richy", "richi", "ritchie", "reachi", "rishi", "ritschi", "ricchi"]
@@ -26,13 +33,18 @@ WAKE_WORDS = ["reachy", "richy", "richi", "ritchie", "reachi", "rishi", "ritschi
 # 🔊 SYNTHÈSE VOCALE (TTS)
 # ==========================================
 def speak(text: str, lang: str = "fr"):
-    """Transforme le texte en parole et le lit sur les haut-parleurs."""
+    """Transforme le texte en parole et le lit sur les haut-parleurs du robot."""
     print(f"\n🤖 Reachy dit : « {text} »")
-    
+
     tts = gTTS(text=text, lang=lang, slow=False)
     tts.save(AUDIO_RESPONSE_FILE)
 
-    pygame.mixer.init()
+    # Initialise Pygame sur le haut-parleur de Reachy
+    try:
+        pygame.mixer.init(devicename=ROBOT_SPEAKER_NAME)
+    except Exception:
+        pygame.mixer.init()
+
     pygame.mixer.music.load(AUDIO_RESPONSE_FILE)
     pygame.mixer.music.play()
 
@@ -42,7 +54,7 @@ def speak(text: str, lang: str = "fr"):
     pygame.mixer.music.unload()
     pygame.mixer.quit()
     time.sleep(0.3)
-    
+
     if os.path.exists(AUDIO_RESPONSE_FILE):
         try:
             os.remove(AUDIO_RESPONSE_FILE)
@@ -55,7 +67,14 @@ def speak(text: str, lang: str = "fr"):
 # ==========================================
 def listen_for_wakeword() -> bool:
     """Écoute en continu par tranches courtes pour détecter 'Hey Reachy'."""
-    audio_data = sd.rec(int(WAKE_RECORD_DURATION * SAMPLERATE), samplerate=SAMPLERATE, channels=1, dtype='int16')
+    # Capture forcée sur le micro Reachy (device=ROBOT_MIC_ID)
+    audio_data = sd.rec(
+        int(WAKE_RECORD_DURATION * SAMPLERATE), 
+        samplerate=SAMPLERATE, 
+        channels=1, 
+        dtype='int16', 
+        device=ROBOT_MIC_ID
+    )
     sd.wait()
     write(AUDIO_WAKE_FILE, SAMPLERATE, audio_data)
 
@@ -91,7 +110,14 @@ def record_audio(duration: int = RECORD_DURATION) -> str:
     time.sleep(0.3)
     print(f"\n🎙️ Posez votre question ({duration} secondes)... PARLEZ MAINTENANT !")
     
-    audio_data = sd.rec(int(duration * SAMPLERATE), samplerate=SAMPLERATE, channels=1, dtype='int16')
+    # Capture forcée sur le micro Reachy (device=ROBOT_MIC_ID)
+    audio_data = sd.rec(
+        int(duration * SAMPLERATE), 
+        samplerate=SAMPLERATE, 
+        channels=1, 
+        dtype='int16', 
+        device=ROBOT_MIC_ID
+    )
     sd.wait()
     
     write(AUDIO_RECORD_FILE, SAMPLERATE, audio_data)
@@ -122,19 +148,29 @@ def transcribe_audio(file_path: str) -> str:
 # 🎥 VISION / SCAN DE CARTE ÉTUDIANTE
 # ==========================================
 def scan_student_card() -> str:
-    """Ouvre la caméra pour scanner un QR Code de carte étudiante."""
-    print("\n🎥 Ouverture de la caméra pour le scan de carte...")
-    cap = cv2.VideoCapture(CAMERA_INDEX)
+    """Conserve Reachy en position haute et libère la caméra USB pour OpenCV."""
+    print("\n🎥 Préparation du scan carte...")
+
+    # 1. Libération de la caméra tout en gardant les moteurs alimentés
+    try:
+        mini = ReachyMini()
+        mini.release_media()
+        time.sleep(0.5)
+    except Exception as e:
+        print(f"⚠️ Avertissement connexion robot : {e}")
+
+    # 2. Capture du QR Code via OpenCV
+    cap = cv2.VideoCapture(0)
     qr_detector = cv2.QRCodeDetector()
 
     if not cap.isOpened():
-        print("❌ Impossible d'ouvrir la caméra.")
+        print("❌ Impossible d'accéder à la caméra.")
         return ""
 
     card_id = ""
     start_time = time.time()
-    
-    while time.time() - start_time < 15:  # Timeout 15 secondes
+
+    while time.time() - start_time < 15:
         ret, frame = cap.read()
         if not ret:
             break
@@ -143,14 +179,14 @@ def scan_student_card() -> str:
         if data:
             card_id = data.strip()
             print(f"✅ CARTE SCANNÉE : {card_id}")
-            
+
             if bbox is not None:
                 n = len(bbox[0])
                 for i in range(n):
                     pt1 = tuple(map(int, bbox[0][i]))
                     pt2 = tuple(map(int, bbox[0][(i + 1) % n]))
                     cv2.line(frame, pt1, pt2, (0, 255, 0), 3)
-            
+
             cv2.imshow("Scan Carte Etudiante", frame)
             cv2.waitKey(1000)
             break
@@ -162,7 +198,6 @@ def scan_student_card() -> str:
     cap.release()
     cv2.destroyAllWindows()
     return card_id
-
 
 # ==========================================
 # 🧠 TRAITEMENT NLP & MCP MIDDLEWARE

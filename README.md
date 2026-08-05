@@ -65,15 +65,15 @@ Accessible sur http://localhost:3000
 ```powershell
 cd reachy-robot-ia
 .\.venv\Scripts\Activate.ps1
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8080
 ```
 
-(Alternative si problème d'environnement global : .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000)
+(Alternative si problème d'environnement global : .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8080)
 
-Accessible sur http://127.0.0.1:8000
+Accessible sur http://127.0.0.1:8080
 
 ## 3. Validation & Test de la Chaîne Complète
-Rendez-vous sur la documentation interactive : http://127.0.0.1:8000/docs.
+Rendez-vous sur la documentation interactive : http://127.0.0.1:8080/docs.
 
 Dépliez la route POST /api/v1/process et cliquez sur Try it out.
 
