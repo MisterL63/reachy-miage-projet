@@ -20,106 +20,79 @@ class NLPService:
         self.model_id = "Qwen/Qwen2.5-72B-Instruct"
         self.client = InferenceClient(model=self.model_id, token=self.token)
         
-        # Mots-clés directs pour court-circuiter le modèle sur les requêtes évidentes
-        self.rules = {
-            r"\b(ou est|où est|cherche|salle de|cours avec)\b": "SEARCH_PROF",
-            r"\b(notes|dossier|bulletin|absences)\b": "GET_DOSSIER",
-            r"\b(emploi du temps|planning)\b": "GET_ALL_PLANNINGS",
-            r"\b(inscription|secrétariat|secretariat|règlement|reglement)\b": "GET_INFO_ADMIN"
-        }
-
-        # Définition des intentions pour le prompt du LLM
+        # Définition des outils/intentions pour le prompt du LLM
         self.intent_descriptions = {
-            "SEARCH_PROF": "Trouver un professeur, chercher un contact enseignant, demander la salle d'un prof.",
-            "GET_DOSSIER": "Accéder à son dossier étudiant, ses notes, son bulletin ou ses absences.",
+            "SEARCH_PROF": "Trouver un professeur, chercher un contact enseignant, demander la salle d'un prof. L'IA DOIT extraire le nom du professeur de la phrase (sans les titres de civilité comme M., Mme) et le placer dans les paramètres sous la clé 'nom_prof'.",
+            "GET_DOSSIER": "Accéder à son dossier étudiant, ses notes, son bulletin ou ses absences. L'IA peut extraire l'ID de la carte étudiante s'il est mentionné et le placer dans les paramètres sous la clé 'id_carte'.",
             "GET_ALL_PLANNINGS": "Demander l'emploi du temps, le planning complet ou l'agenda.",
             "GET_INFO_ADMIN": "Demander des informations administratives (inscription, secrétariat, règlement).",
             "CHAT": "L'utilisateur discute, dit bonjour, demande comment tu vas, ou pose une question courante sans rapport avec les autres intentions."
         }
 
     def classify(self, text: str) -> dict:
-        text_lower = text.lower()
         intent = "UNKNOWN"
         confidence = 0.0
         params = {}
-
-        # 1. Vérification par règles (rapide et très robuste pour les phrases typiques)
-        for pattern, mapped_intent in self.rules.items():
-            if re.search(pattern, text_lower):
-                intent = mapped_intent
-                confidence = 1.0
-                break
-
-        # Extraction d'entité heuristique pour le professeur (au cas où on est passé par les règles)
-        if intent == "SEARCH_PROF":
-            match = re.search(r"(?:monsieur|madame|professeur|prof|m\.|mr\.|mr|mme|cours de|avec)\s+([a-zA-ZÀ-ÿ\-]+)", text, re.IGNORECASE)
-            if match:
-                params["nom_prof"] = match.group(1)
-            else:
-                words = text.split()
-                if len(words) > 1:
-                    for word in words[1:]:
-                        clean_word = re.sub(r'[^a-zA-ZÀ-ÿ\-]', '', word)
-                        if clean_word and clean_word[0].isupper() and len(clean_word) > 2:
-                            params["nom_prof"] = clean_word
-                            break
-
         chat_response = ""
 
-        # 2. Si aucune règle ne correspond, on affine avec le LLM
-        if intent == "UNKNOWN":
-            prompt = f"""Tu es Reachy, un robot assistant intelligent de l'université.
-Ta tâche est d'analyser la requête et de répondre STRICTEMENT en JSON.
+        # L'IA analyse la phrase complète pour en comprendre le sens profond
+        prompt = f"""Tu es Reachy, un robot assistant intelligent de l'université.
+Ta tâche est d'analyser la requête de l'utilisateur pour comprendre son intention profonde et d'agir comme un routeur d'outils (MCP).
+Tu dois répondre STRICTEMENT en JSON, sans aucun texte avant ou après.
 
-Intentions spécifiques à la fac :
+Liste des outils / intentions disponibles :
 {json.dumps(self.intent_descriptions, ensure_ascii=False, indent=2)}
 
-RÈGLE D'OR : Si la requête de l'utilisateur ne concerne pas la fac (ex: salutations, calculs mathématiques, questions générales, blagues), tu DOIS définir l'intention sur "CHAT".
-Lorsque l'intention est "CHAT", tu dois agir comme une vraie IA experte et générer une réponse complète et intelligente dans le champ "chat_response".
+RÈGLE D'OR :
+- Analyse le sens de la phrase entière, ne te base pas juste sur des mots-clés.
+- Si l'utilisateur demande quelque chose lié à une intention, extrais les paramètres nécessaires (comme 'nom_prof' pour SEARCH_PROF) et place-les dans "params".
+- Si la requête de l'utilisateur ne concerne pas la fac (ex: salutations, calculs, questions générales), tu DOIS définir l'intention sur "CHAT".
+- Lorsque l'intention est "CHAT", tu dois agir comme une IA experte et générer une réponse naturelle et utile dans "chat_response".
 
 Format JSON exigé :
 {{
   "intent": "NOM_INTENTION_OU_CHAT",
   "confidence": 0.99,
-  "params": {{}},
+  "params": {{
+    "nom_prof": "..." // Exemple: uniquement si pertinent
+  }},
   "chat_response": "Ta réponse générée ici (si l'intention est CHAT)"
 }}
 
 Requête de l'utilisateur : "{text}"
 """
-            try:
-                # Appel à l'API LLM
-                response = self.client.chat_completion(
-                    messages=[
-                        {"role": "system", "content": "Tu es une IA qui renvoie uniquement du JSON valide."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    max_tokens=400,
-                    temperature=0.4
-                )
-                content = response.choices[0].message.content.strip()
-                print(f"[NLP] Réponse brute du LLM : {content}")
+        try:
+            # Appel à l'API LLM
+            response = self.client.chat_completion(
+                messages=[
+                    {"role": "system", "content": "Tu es une IA experte qui comprend le langage naturel et renvoie uniquement du JSON valide."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=400,
+                temperature=0.3
+            )
+            content = response.choices[0].message.content.strip()
+            print(f"[NLP] Réponse brute du LLM : {content}")
+            
+            # Extraction robuste du JSON via Regex
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if json_match:
+                clean_json = json_match.group(0)
+            else:
+                clean_json = content
                 
-                # Extraction robuste du JSON via Regex
-                json_match = re.search(r'\{.*\}', content, re.DOTALL)
-                if json_match:
-                    clean_json = json_match.group(0)
-                else:
-                    clean_json = content
-                    
-                result = json.loads(clean_json)
+            result = json.loads(clean_json)
+            
+            intent = result.get("intent", "UNKNOWN")
+            confidence = result.get("confidence", 0.0)
+            chat_response = result.get("chat_response", "")
+            if "params" in result and isinstance(result["params"], dict):
+                params.update(result["params"])
                 
-                intent = result.get("intent", "UNKNOWN")
-                confidence = result.get("confidence", 0.0)
-                chat_response = result.get("chat_response", "")
-                if "params" in result and isinstance(result["params"], dict):
-                    params.update(result["params"])
-                    
-            except Exception as e:
-                print(f"[NLP] Erreur JSON ou API : {e}")
-                intent = "UNKNOWN"
-                confidence = 0.0
-                confidence = 0.0
+        except Exception as e:
+            print(f"[NLP] Erreur JSON ou API : {e}")
+            intent = "UNKNOWN"
+            confidence = 0.0
 
         return {
             "intent": intent,
@@ -127,4 +100,33 @@ Requête de l'utilisateur : "{text}"
             "text": text,
             "params": params,
             "chat_response": chat_response
-        }
+        }
+
+    def generate_response(self, text: str, data: dict) -> str:
+        prompt = f"""Tu es Reachy, un robot assistant sympathique de l'université.
+L'utilisateur t'a posé cette question : "{text}"
+
+Voici les données renvoyées par le système d'information suite à sa requête :
+{json.dumps(data, ensure_ascii=False, indent=2)}
+
+Ta tâche est de formuler une réponse parlée, naturelle et concise pour l'utilisateur, en te basant sur ces données.
+Règles :
+- Ne mentionne jamais que tu lis des données, du JSON, ou que tu interroges un système.
+- Adresse-toi directement à l'utilisateur de manière polie.
+- S'il y a une erreur dans les données, explique-le gentiment.
+- Sois bref et précis (c'est pour être prononcé à l'oral par un robot).
+"""
+        try:
+            # Appel à l'API LLM pour générer la phrase finale
+            response = self.client.chat_completion(
+                messages=[
+                    {"role": "system", "content": "Tu es Reachy, l'assistant vocal de l'université. Tu dois répondre de manière naturelle et concise."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=300,
+                temperature=0.5
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            print(f"[NLP] Erreur de génération de phrase : {e}")
+            return "Je suis désolé, j'ai trouvé l'information mais je n'arrive pas à formuler ma réponse correctement."
