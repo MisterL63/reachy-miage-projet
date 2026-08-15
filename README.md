@@ -72,6 +72,15 @@ uvicorn app.main:app --reload --port 8080
 
 Accessible sur http://127.0.0.1:8080
 
+### Terminal 3 : le Daemon
+
+```powershell
+cd reachy-robot-ia
+.\.venv\Scripts\reachy-mini-daemon.exe
+```
+
+Attendre le lancement et le robot devrait se redresser.
+
 ## 3. Validation & Test de la Chaîne Complète
 Rendez-vous sur la documentation interactive : http://127.0.0.1:8080/docs.
 
