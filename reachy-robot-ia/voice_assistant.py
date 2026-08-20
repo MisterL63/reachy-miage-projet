@@ -8,6 +8,8 @@ from gtts import gTTS
 import pygame
 from reachy_mini import ReachyMini
 import numpy as np
+import threading
+from reachy_animations import nod_yes, shake_no, think, sleep_pose, wakeup # 👈 NOUVELLES ANIMATIONS
 
 # --- CONFIGURATION MATÉRIEL REACHY ---
 API_BASE_URL = "http://127.0.0.1:8080"
@@ -148,19 +150,13 @@ def transcribe_audio(file_path: str) -> str:
 # 🎥 VISION / SCAN DE CARTE ÉTUDIANTE
 # ==========================================
 def scan_student_card() -> str:
-    """Conserve Reachy en position haute et libère la caméra USB pour OpenCV."""
+    """Utilise la caméra USB pour OpenCV (la caméra est déjà libérée par le programme principal)."""
     print("\n🎥 Préparation du scan carte...")
 
-    # 1. Libération de la caméra tout en gardant les moteurs alimentés
-    try:
-        mini = ReachyMini()
-        mini.release_media()
-        time.sleep(0.5)
-    except Exception as e:
-        print(f"⚠️ Avertissement connexion robot : {e}")
+    # On a retiré le bloc "ReachyMini()" ici car la connexion est déjà ouverte !
 
-    # 2. Capture du QR Code via OpenCV
-    cap = cv2.VideoCapture(0)
+    # Capture du QR Code via OpenCV
+    cap = cv2.VideoCapture(CAMERA_INDEX)
     qr_detector = cv2.QRCodeDetector()
 
     if not cap.isOpened():
@@ -249,60 +245,105 @@ def format_robot_reply(mcp_res: dict) -> str:
 # ==========================================
 def run_voice_assistant():
     print("==================================================")
-    print("🤖 ASSISTANT VOCAL & VISION REACHY - AUTONOME")
+    print("  ASSISTANT VOCAL & VISION REACHY - AUTONOME")
     print("==================================================")
-    print("💡 Dites « Hey Reachy ! » pour réveiller le robot.")
-    print("💡 Appuyez sur Ctrl+C dans le terminal pour tout stopper.\n")
+    print("  Dites « Hey Reachy ! » pour réveiller le robot.")
+    print("  Appuyez sur Ctrl+C dans le terminal pour tout stopper.\n")
     
-    speak("Bonjour ! Je suis Reachy. Dites 'Hey Reachy' pour me parler.")
+    print("🤖 Connexion au robot en cours...")
     
     try:
-        while True:
-            print("\r👀 En attente du mot-clé « Hey Reachy ! »...", end="", flush=True)
+        with ReachyMini() as robot:
             
-            # 1. Attente du Mot-Clé
-            if listen_for_wakeword():
-                speak("Oui ? Je vous écoute !")
-                
-                # 2. Capture de la question
-                audio_file = record_audio()
-                
-                # 3. Transcription STT
-                user_text = transcribe_audio(audio_file)
-                if not user_text:
-                    speak("Je n'ai pas entendu votre question.")
-                    continue
+            if hasattr(robot, 'release_media'):
+                robot.release_media()
+                time.sleep(0.5)
 
-                # 4. Traitement IA & MCP
-                print("🧠 Analyse de la demande...")
-                result = process_intent(user_text)
-                mcp_res = result.get("mcp_response", {})
+            # Animation de démarrage puis mise en veille
+            threading.Thread(target=wakeup, args=(robot,)).start()
+            speak("Bonjour ! Je suis Reachy. Dites 'Hey Reachy' pour me parler.")
+            
+            # Mise en position "Sommeil" avant d'écouter
+            sleep_pose(robot)
+            
+            while True:
+                print("\r  En attente du mot-clé « Hey Reachy ! »...", end="", flush=True)
+                
+                # 1. Attente du Mot-Clé
+                if listen_for_wakeword():
+                    # 👈 PARALLÉLISME : Réveil et parole en même temps !
+                    threading.Thread(target=wakeup, args=(robot,)).start()
+                    speak("Oui ? Je vous écoute !")
+                    
+                    # 2. Capture de la question
+                    audio_file = record_audio()
+                    
+                    # 3. Transcription STT
+                    user_text = transcribe_audio(audio_file)
+                    if not user_text:
+                        threading.Thread(target=shake_no, args=(robot,)).start()
+                        speak("Je n'ai pas entendu votre question.")
+                        sleep_pose(robot) # Retour en sommeil
+                        continue
 
-                # 5. Gestion Carte / Réponse
-                if mcp_res.get("action_requise") == "REQUIRE_SCAN":
-                    prompt_msg = format_robot_reply(mcp_res)
-                    speak(prompt_msg)
+                    # 4. Traitement IA & MCP
+                    print("  Analyse de la demande...")
                     
-                    card_id = scan_student_card()
+                    # L'animation de réflexion peut bloquer (pas besoin de thread) car 
+                    # on veut qu'il patiente pendant que l'IA cherche.
+                    threading.Thread(target=think, args=(robot,)).start() 
                     
-                    if card_id:
-                        speak("Carte détectée, consultation de votre dossier en cours.")
-                        second_result = process_intent(user_text, params={"id_carte": card_id})
-                        final_reply = format_robot_reply(second_result.get("mcp_response", {}))
-                        speak(final_reply)
+                    result = process_intent(user_text)
+                    mcp_res = result.get("mcp_response", {})
+                    
+                    intent = result.get("analysis", {}).get("intent", "UNKNOWN")
+                    is_error = intent == "UNKNOWN" or "erreur" in mcp_res
+
+                    # 5. Gestion Carte / Réponse
+                    if mcp_res.get("action_requise") == "REQUIRE_SCAN":
+                        prompt_msg = format_robot_reply(mcp_res)
+                        speak(prompt_msg)
+                        
+                        card_id = scan_student_card()
+                        
+                        if card_id:
+                            threading.Thread(target=nod_yes, args=(robot,)).start()
+                            speak("Carte détectée, consultation de votre dossier en cours.")
+                            
+                            threading.Thread(target=think, args=(robot,)).start()
+                            
+                            second_result = process_intent(user_text, params={"id_carte": card_id})
+                            final_reply = format_robot_reply(second_result.get("mcp_response", {}))
+                            
+                            if "erreur" in second_result.get("mcp_response", {}):
+                                threading.Thread(target=shake_no, args=(robot,)).start()
+                            else:
+                                threading.Thread(target=nod_yes, args=(robot,)).start()
+                                
+                            speak(final_reply)
+                        else:
+                            threading.Thread(target=shake_no, args=(robot,)).start()
+                            speak("Aucune carte n'a été détectée. Opération annulée.")
                     else:
-                        speak("Aucune carte n'a été détectée. Opération annulée.")
-                else:
-                    final_reply = format_robot_reply(mcp_res)
-                    speak(final_reply)
-                
-                print("\n🔄 Reachy retourne en veille...\n")
-                time.sleep(1.0)
-
+                        if is_error:
+                            threading.Thread(target=shake_no, args=(robot,)).start()
+                        else:
+                            threading.Thread(target=nod_yes, args=(robot,)).start()
+                            
+                        final_reply = format_robot_reply(mcp_res)
+                        speak(final_reply) # La voix parle pendant que l'animation au-dessus s'exécute
+                    
+                    print("\n  Reachy retourne en veille...\n")
+                    sleep_pose(robot) # 👈 Retourne en position de sommeil
+                    time.sleep(1.0)
+                    
     except KeyboardInterrupt:
-        print("\n\n🛑 Arrêt de l'assistant vocal Reachy.")
+        print("\n\n  Arrêt de l'assistant vocal Reachy.")
         speak("Au revoir !")
+    except Exception as e:
+        print(f"❌ Erreur critique : {e}")
     finally:
+        import os
         if os.path.exists(AUDIO_RECORD_FILE):
             try:
                 os.remove(AUDIO_RECORD_FILE)
