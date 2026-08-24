@@ -1,0 +1,37 @@
+[
+  {
+    "id": 1,
+    "categorie": "procédure",
+    "mots_cles": ["inscription", "administrative", "frais", "scolarité"],
+    "question": "Comment faire mon inscription administrative ?",
+    "reponse": "Les inscriptions administratives se font en ligne sur le portail étudiant (ENT). Vous devez fournir votre attestation de paiement de la CVEC, une pièce d'identité et votre relevé de notes précédent."
+  },
+  {
+    "id": 2,
+    "categorie": "contact",
+    "mots_cles": ["secrétariat", "scolarité", "horaires", "contacter"],
+    "question": "Quels sont les horaires du secrétariat ?",
+    "reponse": "Le secrétariat pédagogique de la MIAGE est ouvert du lundi au jeudi de 9h à 12h et de 14h à 16h. Il est fermé le vendredi. Vous pouvez les contacter à miage-contact@unice.fr."
+  },
+  {
+    "id": 3,
+    "categorie": "règlement",
+    "mots_cles": ["absences", "justificatif", "maladie", "règlement"],
+    "question": "Que faire en cas d'absence à un TD ou un examen ?",
+    "reponse": "Toute absence doit être justifiée dans les 48 heures au secrétariat, sous peine d'avoir un 0 à l'examen. Les certificats médicaux doivent préciser la date et la durée de l'incapacité."
+  },
+  {
+    "id": 4,
+    "categorie": "dates",
+    "mots_cles": ["rentrée", "vacances", "examens", "dates"],
+    "question": "Quand commencent les examens du premier semestre ?",
+    "reponse": "La session d'examens du premier semestre se déroule généralement la deuxième quinzaine de décembre. Le calendrier exact est publié sur l'ENT mi-novembre."
+  },
+  {
+    "id": 5,
+    "categorie": "alternance",
+    "mots_cles": ["alternance", "contrat", "apprentissage", "entreprise"],
+    "question": "Quelles sont les dates limites pour trouver une alternance ?",
+    "reponse": "Vous avez jusqu'au 31 octobre pour signer un contrat d'apprentissage ou de professionnalisation. Sans contrat à cette date, vous basculerez en formation initiale avec un stage obligatoire."
+  }
+]

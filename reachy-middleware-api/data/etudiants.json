@@ -1,0 +1,30 @@
+[
+  {
+    "id_carte": "MIAGE_L3_001",
+    "nom": "Panfili",
+    "prenom": "Michael",
+    "formation": "Licence 3 MIAGE",
+    "notes": {
+      "Mathematique Discrete": 16.5,
+      "Base_de_donnees": 15.0,
+      "Management": 14.0
+    },
+    "absences_injustifiees": 0,
+    "statut_alternance": "Alternance confirmée rentrée 2026",
+    "dossier_administratif": "Candidat Master MBDS - Dossier Complet"
+  },
+  {
+    "id_carte": "MIAGE_L3_002",
+    "nom": "Jungers",
+    "prenom": "Enzo",
+    "formation": "Licence 3 MIAGE",
+    "notes": {
+      "Mathematique Discrete": 15.5,
+      "Base_de_donnees": 14.5,
+      "Management": 16.0
+    },
+    "absences_injustifiees": 2,
+    "statut_alternance": "Recherche en cours",
+    "dossier_administratif": "En attente du justificatif de domicile"
+  }
+]

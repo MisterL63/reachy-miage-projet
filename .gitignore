@@ -1,0 +1,53 @@
+# ==========================================
+# Fichier .gitignore pour Reachy MIAGE
+# ==========================================
+
+# ------------------------------------------
+# 1. Node.js & React (Middleware & Admin)
+# ------------------------------------------
+node_modules/
+npm-debug.log
+yarn-error.log
+# Dossiers de build (générés par React)
+build/
+dist/
+.next/
+
+# ------------------------------------------
+# 2. Python (Serveur IA & Script Reachy)
+# ------------------------------------------
+# Fichiers compilés
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environnements virtuels (très important de ne pas les push !)
+.venv/
+venv/
+env/
+ENV/
+
+# ------------------------------------------
+# 3. Fichiers de Configuration & Sécurité
+# ------------------------------------------
+# Fichiers d'environnement contenant des mots de passe ou des clés API secrètes
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ------------------------------------------
+# 4. Fichiers Système (Windows & macOS)
+# ------------------------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ------------------------------------------
+# 5. Éditeurs de code (VS Code, IntelliJ...)
+# ------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo

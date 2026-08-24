@@ -1,0 +1,20 @@
+[
+  {
+    "id_cours": 101,
+    "matiere": "Management",
+    "professeur": "M. Tounsi",
+    "salle": "Salle C3",
+    "heure_debut": "08:00",
+    "heure_fin": "10:00",
+    "statut": "En cours"
+  },
+  {
+    "id_cours": 102,
+    "matiere": "Python pour machine learning",
+    "professeur": "M. Donati",
+    "salle": "Salle C4",
+    "heure_debut": "10:15",
+    "heure_fin": "12:15",
+    "statut": "À venir"
+  }
+]
