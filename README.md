@@ -113,3 +113,19 @@ Résultat attendu (200 OK) :
   }
 }
 ```
+
+
+### Shémas d'architecture technique 
+
+<img width="1178" height="442" alt="image" src="https://github.com/user-attachments/assets/898ae8f4-50bf-42b6-afa3-032d1ce44ff1" />
+
+
+### vidéo de démonstration
+
+https://github.com/user-attachments/assets/1a28258f-a03b-4d81-8da1-e8e59c7808ad
+
+
+
+
+
+
